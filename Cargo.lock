@@ -1,10 +1,10 @@
 [root]
-name = "urpc-serial"
+name = "microrpc-serial"
 version = "0.1.0"
 dependencies = [
  "clap 2.22.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "microrpc 0.1.0",
  "serial 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "urpc 0.1.0",
 ]
 
 [[package]]
@@ -70,6 +70,13 @@ version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "microrpc"
+version = "0.1.0"
+dependencies = [
+ "byteorder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "serial"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -111,13 +118,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "unicode-width"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "urpc"
-version = "0.1.0"
-dependencies = [
- "byteorder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "vec_map"

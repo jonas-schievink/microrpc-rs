@@ -1,15 +1,15 @@
 [package]
 authors = ["Jonas Schievink <jonasschievink@gmail.com>"]
-name = "urpc-serial"
+name = "microrpc-serial"
 version = "0.1.0"
 
 [[bin]]
-name = "urpc-serial"
+name = "microrpc-serial"
 path = "main.rs"
 
 [dependencies]
 clap = "2.22.1"
 serial = "0.3.4"
 
-[dependencies.urpc]
+[dependencies.microrpc]
 path = ".."
