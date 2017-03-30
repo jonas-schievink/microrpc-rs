@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate clap;
-extern crate urpc;
+extern crate microrpc;
 extern crate serial;
 
-use urpc::{Type, Value, Client};
+use microrpc::{Type, Value, Client};
 
 use clap::{App, Arg, ArgMatches};
 use serial::prelude::*;
@@ -108,7 +108,7 @@ fn run(m: &ArgMatches) -> Result<(), Box<Error>> {
             {
                 // To determine the type of value to parse the args into, look up the procedure
                 // signature
-                let p = conn.procedures()?.get(proc_id as usize).ok_or(urpc::Error::ProcOutOfRange)?;
+                let p = conn.procedures()?.get(proc_id as usize).ok_or(microrpc::Error::ProcOutOfRange)?;
 
                 if p.parameter_types().len() != args.len() {
                     Err(format!("the procedure takes {} arguments, {} provided",
