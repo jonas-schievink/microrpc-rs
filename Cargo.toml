@@ -1,0 +1,10 @@
+[package]
+authors = ["Jonas Schievink <jonasschievink@gmail.com>"]
+name = "urpc"
+version = "0.1.0"
+
+[dependencies]
+byteorder = "1.0.0"
+
+[workspace]
+members = [ "urpc-serial" ]
