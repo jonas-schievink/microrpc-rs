@@ -32,7 +32,7 @@ pub struct Client<C: Write + Read> {
 }
 
 impl<C: Write + Read> Client<C> {
-    /// Creates a new `Connection` object.
+    /// Creates a new `Client` object using `channel` for communication with the µRPC server.
     pub fn new(channel: C) -> Self {
         Client {
             channel: channel,
