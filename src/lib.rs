@@ -40,6 +40,14 @@ impl<C: Write + Read> Client<C> {
         }
     }
 
+    /// Obtain a reference to the channel used for communication.
+    ///
+    /// Performing any I/O on the returned channel will most likely confuse the library or server
+    /// and lead to errors/bugs. Don't do that.
+    pub fn channel(&self) -> &C {
+        &self.channel
+    }
+
     /// Re-Enumerate the Server's exported procedures and store them.
     ///
     /// Since this will be called automatically before anything else is communicated, this also
