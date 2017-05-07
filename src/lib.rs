@@ -122,6 +122,13 @@ impl<C: Write + Read> Client<C> {
             let procedure = &procs[id as usize];
             assert_eq!(procedure.id, id);
 
+            if procedure.parameters.len() != arguments.len() {
+                return Err(Error::MismatchedArgumentCount {
+                    expected: procedure.parameters.len() as u16,
+                    found: arguments.len(),
+                });
+            }
+
             // Make sure all arguments match
             for (i, (got, expected)) in arguments.iter().zip(procedure.parameters.iter()).enumerate() {
                 if got.ty() != *expected {

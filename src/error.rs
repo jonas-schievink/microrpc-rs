@@ -18,6 +18,14 @@ pub enum Error {
     /// Procedure ID is out of range.
     ProcOutOfRange,
 
+    /// An incorrect number of arguments was passed to `Client::call`.
+    MismatchedArgumentCount {
+        /// Expected number of arguments.
+        expected: u16,
+        /// Actual number of arguments.
+        found: usize,
+    },
+
     /// Argument types are mismatched.
     MismatchedArguments {
         /// Index of mismatched argument.
@@ -52,6 +60,9 @@ impl fmt::Display for Error {
             Error::IoError(ref io) => writeln!(f, "i/o error: {}", io),
             Error::GenericError => writeln!(f, "generic µRPC error"),
             Error::ProcOutOfRange => writeln!(f, "procedure id out of range"),
+            Error::MismatchedArgumentCount { expected, found } =>
+                writeln!(f, "mismatched number of arguments (expected {}, got {})",
+                         expected, found),
             Error::MismatchedArguments { index, ref expected, ref found } =>
                 writeln!(f, "mismatched argument type for argument index {} (expected {}, found \
                              {})", index, expected, found),
@@ -70,6 +81,7 @@ impl error::Error for Error {
             Error::IoError(ref io) => io.description(),
             Error::GenericError => "generic µRPC error",
             Error::ProcOutOfRange => "procedure id out of range",
+            Error::MismatchedArgumentCount { .. } => "mismatched number of arguments",
             Error::MismatchedArguments { .. } => "mismatched arguments",
             Error::MismatchedVersion { .. } => "mismatched µRPC version",
             Error::ProtocolError { description } => description,
