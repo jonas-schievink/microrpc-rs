@@ -2,82 +2,36 @@
 extern crate clap;
 extern crate microrpc;
 extern crate serial;
+extern crate rustyline;
+
+mod util;
 
 use microrpc::{Type, Value, Client};
 
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgMatches};
 use serial::prelude::*;
+use rustyline::Editor;
+use rustyline::error::ReadlineError;
 
 use std::path::Path;
-use std::io::{self, stderr, Write, Read};
+use std::io::{stderr, Read, Write};
 use std::error::Error;
 use std::time::Duration;
-use std::thread::sleep;
-use std::fmt;
 
-struct HexDump<'a>(&'a [u8]);
+fn execute<C: Read + Write>(line: &str, conn: &mut Client<C>) -> Result<(), Box<Error>> {
+    let mut parts = line.trim().split_whitespace();
 
-impl<'a> fmt::Display for HexDump<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0.iter()
-            .map(|byte| format!("{:02X}", byte))
-            .collect::<Vec<_>>()
-            .join(" "))
-    }
-}
+    let cmd = match parts.next() {
+        Some(cmd) => cmd,
+        None => return Ok(()),  // ignore missing commands
+    };
 
-struct IoDebug<C: Read + Write>(C);
-
-impl<C: Read + Write> Read for IoDebug<C> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self.0.read(buf) {
-            Ok(bytes) => {
-                println!("< {}", HexDump(&buf[0..bytes]));
-                Ok(bytes)
+    match cmd {
+        "list" => {
+            if let Some(unexpected) = parts.next() {
+                return Err(format!("unexpected argument to 'list' command: {}", unexpected).into());
             }
-            Err(e) => Err(e)
-        }
-    }
-}
 
-impl<C: Read + Write> Write for IoDebug<C> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match self.0.write(buf) {
-            Ok(bytes) => {
-                println!("> {}", HexDump(&buf[0..bytes]));
-                Ok(bytes)
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
-    }
-}
-
-fn run(m: &ArgMatches) -> Result<(), Box<Error>> {
-    let path = m.value_of("endpoint").unwrap();
-    let path = Path::new(path);
-
-    // Set up serial port
-    let mut serial = serial::open(path)?;
-    serial.set_timeout(Duration::from_secs(5))?;
-    let mut settings = serial::SerialDevice::read_settings(&serial)?;
-    settings.set_baud_rate(serial::Baud115200)?;
-    settings.set_char_size(serial::CharSize::Bits8);
-    settings.set_flow_control(serial::FlowNone);
-    settings.set_parity(serial::ParityNone);
-    settings.set_stop_bits(serial::Stop1);
-    serial::SerialDevice::write_settings(&mut serial, &settings)?;
-
-    // When connecting to an Arduino, it will reset now. Wait for a bit until it's back up.
-    sleep(Duration::from_secs(2));
-
-    let mut conn = Client::new(IoDebug(serial));
-
-    match m.subcommand() {
-        ("list", Some(_)) => {
             let procs = conn.procedures()?;
             println!("endpoint reports {} exported procedure(s)", procs.len());
 
@@ -98,11 +52,9 @@ fn run(m: &ArgMatches) -> Result<(), Box<Error>> {
                 }
             }
         }
-        ("call", Some(m)) => {
-            let proc_id = m.value_of("proc_id").unwrap().parse::<u16>().unwrap();
-            let args = m.values_of("args").into_iter()
-                .flat_map(|args_opt| args_opt)
-                .collect::<Vec<_>>();
+        "call" => {
+            let call_usage = "call <procedure> <args...>";
+            let proc_id = parts.next().ok_or(call_usage)?.parse::<u16>()?;
 
             let mut arg_values = Vec::new();
             {
@@ -110,13 +62,7 @@ fn run(m: &ArgMatches) -> Result<(), Box<Error>> {
                 // signature
                 let p = conn.procedures()?.get(proc_id as usize).ok_or(microrpc::Error::ProcOutOfRange)?;
 
-                if p.parameter_types().len() != args.len() {
-                    Err(format!("the procedure takes {} arguments, {} provided",
-                    p.parameter_types().len(),
-                    args.len()))?
-                }
-
-                for (arg_type, arg) in p.parameter_types().iter().zip(args.iter()) {
+                for (arg_type, arg) in p.parameter_types().iter().zip(parts.by_ref()) {
                     arg_values.push(match *arg_type {
                         Type::U8 => Value::U8(arg.parse()?),
                         Type::U16 => Value::U16(arg.parse()?),
@@ -124,36 +70,65 @@ fn run(m: &ArgMatches) -> Result<(), Box<Error>> {
                 }
             }
 
+            if let Some(unexpected) = parts.next() {
+                return Err(format!("unexpected trailing argument to 'call' command (too many \
+                    arguments): {}", unexpected).into());
+            }
+
             if let Some(ret) = conn.call(proc_id, &arg_values)? {
                 println!("{}", ret);
             }
         }
-        _ => unreachable!(),
+        _ => return Err("unknown command".into()),
     }
 
     Ok(())
 }
 
+fn run(m: &ArgMatches) -> Result<(), Box<Error>> {
+    let path = m.value_of("endpoint").unwrap();
+    let path = Path::new(path);
+
+    // Set up serial port
+    let mut serial = serial::open(path)?;
+    serial.set_timeout(Duration::from_secs(1))?;
+    let mut settings = serial::SerialDevice::read_settings(&serial)?;
+    settings.set_baud_rate(serial::Baud115200)?;
+    settings.set_char_size(serial::CharSize::Bits8);
+    settings.set_flow_control(serial::FlowNone);
+    settings.set_parity(serial::ParityNone);
+    settings.set_stop_bits(serial::Stop1);
+    serial::SerialDevice::write_settings(&mut serial, &settings)?;
+
+    let mut conn = Client::new(util::IoDebug(serial));
+    let mut prompt = Editor::<()>::new();
+
+    loop {
+        let line = match prompt.readline("REPL> ") {
+            Ok(line) => line,
+            Err(ReadlineError::Eof) => return Ok(()),           // Ctrl+D
+            Err(ReadlineError::Interrupted) => return Ok(()),   // Ctrl+C
+            Err(e) => return Err(e.into()),
+        };
+
+        prompt.add_history_entry(&line);    // why is this not automatic?
+
+        match execute(&line, &mut conn) {
+            Ok(()) => {},
+            Err(e) => {
+                println!("error: {}", e);
+            }
+        }
+    }
+}
+
 fn main() {
     include_str!("../Cargo.toml");
     let m = app_from_crate!(",\n")
-        .subcommand(App::new("list")
-            .help("List the exported procedures of the endpoint"))
-        .subcommand(App::new("call")
-            .help("Call a procedure identified by its ID")
-            .arg(Arg::with_name("proc_id")
-                .help("The ID of the procedure to call (run the `list` subcommand for a list)")
-                .required(true)
-                .validator(|id| id.parse::<u16>()
-                    .map(|_| ())
-                    .map_err(|e| e.to_string())))
-            .arg(Arg::with_name("args")
-                .help("Arguments to pass to the procedure")
-                .multiple(true)))
         .arg(Arg::with_name("endpoint")
             .takes_value(true)
             .required(true)
-            .help("The µRPC server endpoint to connect to (path to a file)"))
+            .help("The serial port to connect to"))
         .get_matches();
 
     match run(&m) {

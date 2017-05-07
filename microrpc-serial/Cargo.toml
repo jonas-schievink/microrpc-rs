@@ -1,5 +1,6 @@
 [package]
 authors = ["Jonas Schievink <jonasschievink@gmail.com>"]
+description = "Provides a µRPC REPL for serial port devices"
 name = "microrpc-serial"
 version = "0.1.0"
 
@@ -9,6 +10,7 @@ path = "main.rs"
 
 [dependencies]
 clap = "2.22.1"
+rustyline = "1.0.0"
 serial = "0.3.4"
 
 [dependencies.microrpc]

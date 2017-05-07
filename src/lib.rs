@@ -34,6 +34,8 @@ pub struct Client<C: Write + Read> {
 impl<C: Write + Read> Client<C> {
     /// Creates a new `Client` object using `channel` for communication with the µRPC server.
     pub fn new(channel: C) -> Self {
+        // FIXME: We might want to do the version check now, to have some hint that this connection
+        // works
         Client {
             channel: channel,
             procedures: None,
