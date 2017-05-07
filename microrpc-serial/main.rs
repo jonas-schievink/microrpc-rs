@@ -6,7 +6,7 @@ extern crate rustyline;
 
 mod util;
 
-use microrpc::{Type, Value, Client};
+use microrpc::{Type, Value, Client, Procedure};
 
 use clap::{Arg, ArgMatches};
 use serial::prelude::*;
@@ -17,6 +17,26 @@ use std::path::Path;
 use std::io::{stderr, Read, Write};
 use std::error::Error;
 use std::time::Duration;
+
+fn print_procs(procs: &[Procedure]) {
+    println!("endpoint reports {} exported procedure(s)", procs.len());
+    for p in procs {
+        if p.parameter_types().is_empty() {
+            print!("{}: (unary function)", p.id());
+        } else {
+            print!("{}: {}", p.id(), p.parameter_types().iter()
+                .map(|param| param.to_string())
+                .collect::<Vec<_>>()
+                .join(", "));
+        }
+
+        if let Some(ret) = p.return_type() {
+            println!(" -> {}", ret);
+        } else {
+            println!();
+        }
+    }
+}
 
 fn execute<C: Read + Write>(line: &str, conn: &mut Client<C>) -> Result<(), Box<Error>> {
     let mut parts = line.trim().split_whitespace();
@@ -33,24 +53,15 @@ fn execute<C: Read + Write>(line: &str, conn: &mut Client<C>) -> Result<(), Box<
             }
 
             let procs = conn.procedures()?;
-            println!("endpoint reports {} exported procedure(s)", procs.len());
-
-            for p in procs {
-                if p.parameter_types().is_empty() {
-                    print!("{}: (unary function)", p.id());
-                } else {
-                    print!("{}: {}", p.id(), p.parameter_types().iter()
-                        .map(|param| param.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", "));
-                }
-
-                if let Some(ret) = p.return_type() {
-                    println!(" -> {}", ret);
-                } else {
-                    println!();
-                }
+            print_procs(procs);
+        }
+        "enumerate" => {
+            if let Some(unexpected) = parts.next() {
+                return Err(format!("unexpected argument to 'enumerate' command: {}", unexpected).into());
             }
+
+            let procs = conn.enumerate()?;
+            print_procs(procs);
         }
         "call" => {
             let call_usage = "call <procedure> <args...>";
